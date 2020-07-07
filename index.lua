@@ -7,7 +7,7 @@ local Scraper = require("scraper")
 local discordia = require("discordia")
 local client = discordia.Client()
 -- local url = io.read()
-local f = io.input('config.txt')
+local f = io.input("config.txt")
 
 local token = ""
 
@@ -16,7 +16,6 @@ for v in f:lines() do
 end
 
 local url = "https://csgostash.com/"
-
 
 print("Started...")
 
@@ -113,11 +112,11 @@ local function send_alias(channel)
     local embed = {
         title = "Skin Alias",
         fields = {
-            {name = "Pistol", value = pistol},
-            {name = "Rifle", value = rifle},
-            {name = "Smg", value = smg},
-            {name = "Heavy", value = heavy},
-            {name = "Knives", value = knives}
+            {name = "Pistol", value = pistol, inline = true},
+            {name = "Rifle", value = rifle, inline = true},
+            {name = "Smg", value = smg, inline = true},
+            {name = "Heavy", value = heavy, inline = true},
+            {name = "Knives", value = knives, inline = true}
         },
         color = discordia.Color.fromRGB(r, g, b).value,
         timestamp = discordia.Date():toISO("T", "Z"),
