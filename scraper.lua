@@ -33,7 +33,6 @@ end
 
 function Scraper:get_price(element)
     local p = {}
-
     local e = element(".price")
 
     p.price = e[1].nodes[1]:getcontent():match([[>(.*)<]])
@@ -44,20 +43,24 @@ end
 function Scraper:get_steam_info(element)
     local e = element(".market-button-skin")
     local e2 = element(".inspect-button-skin")
-    return {inspect = e2[1].attributes.href, listings = e[1].attributes.href}
+    local e3 = element(".details-link")
+    local url = e3[1].nodes[1].nodes[1].attributes.href
+
+    return {inspect = e2[1].attributes.href, listings = e[1].attributes.href, item_url = url}
 end
 
 function Scraper:get_index(elements)
     local q = {}
     for i, e in ipairs(elements) do
+        q[i] = {}
+        q[i].src = e.attributes.src
+        q[i].steam_info = self:get_steam_info(e.parent.parent)
+        q[i].name = self:get_headers(e.parent.parent.nodes[1])
+        q[i].price = self:get_price(e.parent.parent)
+
         local v = self:get_quality(e.parent.parent.nodes)
         if v ~= "" then
-            q[i] = {}
-            q[i].src = e.attributes.src
             q[i].quality = v
-            q[i].steam_info = self:get_steam_info(e.parent.parent)
-            q[i].name = self:get_headers(e.parent.parent.nodes[1])
-            q[i].price = self:get_price(e.parent.parent)
         end
     end
     return q

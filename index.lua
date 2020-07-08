@@ -4,18 +4,19 @@ local html_parser = require("htmlparser")
 local curl = require("curl")
 local alias = require("alias")
 local Scraper = require("scraper")
+local thread = require("thread")
 local discordia = require("discordia")
 local client = discordia.Client()
 -- local url = io.read()
 local f = io.input("config.txt")
 
-local token = ""
-
-for v in f:lines() do
-    token = v
-end
+local token = f:read()
 
 local url = "https://csgostash.com/"
+
+local dev = true
+
+local threads = {}
 
 print("Started...")
 
@@ -26,6 +27,24 @@ local http = curl:new(nil, url)
 local scraper = Scraper:new()
 
 pprint(http.url)
+
+local s = 0
+
+local v =
+    thread.start(
+    function()
+        local i = 0
+        while true do
+            i = i + 1
+            if i == 5000000 then
+                s = 4000
+                print(s)
+            end
+        end
+    end
+)
+
+pprint(s)
 
 local function get_elements()
     for c in http:get("curl ") do
@@ -59,7 +78,7 @@ function table.filter(t, f)
     local b = false
     for i = 1, #t, 1 do
         if t[i] ~= nil then
-            b = f(i, t[i])
+            _, b = pcall(f, i, t[i])
         end
         if b == true then
             table.insert(a, t[i])
@@ -125,6 +144,10 @@ local function send_alias(channel)
     channel:send {embed = embed}
 end
 
+local function is_development(guild)
+    return guild.name == "music server" and dev == true
+end
+
 client:on(
     "ready",
     function()
@@ -135,6 +158,7 @@ client:on(
 client:on(
     "messageCreate",
     function(message)
+        is_development(message.guild)
         if message.author.bot ~= true then
             if message.content:match("!get") then
                 local split = string.split(message.content, " ")
@@ -153,25 +177,23 @@ client:on(
                         end
                     )
                     if q[1] ~= nil then
-                        collectgarbage()
-                        send_embed(message.channel, q[1])
+                        pcall(send_embed, message.channel, q[1])
                     else
                         message.channel:send("`Item " .. split[3] .. " " .. "not found`")
                     end
+                    collectgarbage()
                 end
             else
                 if message.content:match("!alias") then
                     collectgarbage()
-                    send_alias(message.channel)
+                    pcall(send_alias, message.channel)
                 else
                     if message.content:match("!featured") then
                         collectgarbage()
                         http.url = "https://csgostash.com/"
                         local q = scraper.get_index(scraper, get_elements())
                         for i = 1, #q, 1 do
-                            if q[i] ~= nil then
-                                send_embed(message.channel, q[i])
-                            end
+                            pcall(send_embed, message.channel, q[i])
                         end
                     else
                         if message.content:match("!commands") then
@@ -188,3 +210,5 @@ client:on(
 )
 
 client:run(token)
+
+print(s)
