@@ -4,7 +4,6 @@ local html_parser = require("htmlparser")
 local curl = require("curl")
 local alias = require("alias")
 local Scraper = require("scraper")
-local thread = require("thread")
 local discordia = require("discordia")
 local client = discordia.Client()
 -- local url = io.read()
@@ -16,8 +15,6 @@ local url = "https://csgostash.com/"
 
 local dev = true
 
-local threads = {}
-
 print("Started...")
 
 local html = ""
@@ -27,24 +24,6 @@ local http = curl:new(nil, url)
 local scraper = Scraper:new()
 
 pprint(http.url)
-
-local s = 0
-
-local v =
-    thread.start(
-    function()
-        local i = 0
-        while true do
-            i = i + 1
-            if i == 5000000 then
-                s = 4000
-                print(s)
-            end
-        end
-    end
-)
-
-pprint(s)
 
 local function get_elements()
     for c in http:get("curl ") do
@@ -210,5 +189,3 @@ client:on(
 )
 
 client:run(token)
-
-print(s)
