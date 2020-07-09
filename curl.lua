@@ -1,20 +1,15 @@
-Http = {url = ''}
+Http = {}
 
-function Http:new(o,url)
+function Http:new(o)
     o = o or {}
-    setmetatable(o,self)
+    setmetatable(o, self)
     self.__index = self
-    self.url = url
     return o
 end
 
-function Http:change_url(url)
-    self.url = url
-end
-
-function Http:get(command)
-    print(command .. self.url)
-    local x = io.popen(command .. self.url)
+function Http:get(command, url)
+    print(command .. url)
+    local x = io.popen(command .. url)
 
     return x.lines(x)
 end

@@ -1,10 +1,11 @@
 -- dependencies
 local pprint = require("pprint")
-local html_parser = require("htmlparser")
-local curl = require("curl")
+
 local alias = require("alias")
-local Scraper = require("scraper")
 local thread = require("thread")
+local uv = require "uv"
+local Scraper = require "scraper"
+local html_parser = require "htmlparser"
 local discordia = require("discordia")
 local client = discordia.Client()
 -- local url = io.read()
@@ -16,45 +17,9 @@ local url = "https://csgostash.com/"
 
 local dev = true
 
-local threads = {}
-
 print("Started...")
 
-local html = ""
-
-local http = curl:new(nil, url)
-
-local scraper = Scraper:new()
-
-pprint(http.url)
-
-local s = 0
-
-local v =
-    thread.start(
-    function()
-        local i = 0
-        while true do
-            i = i + 1
-            if i == 5000000 then
-                s = 4000
-                print(s)
-            end
-        end
-    end
-)
-
-pprint(s)
-
-local function get_elements()
-    for c in http:get("curl ") do
-        html = html .. c
-    end
-    -- pprint(html)
-    local root = html_parser.parse(html)
-
-    return root:select(".center-block")
-end
+local scraper = Scraper:new(nil)
 
 --htmlparser_looplimit = 2000
 
@@ -148,13 +113,65 @@ local function is_development(guild)
     return guild.name == "music server" and dev == true
 end
 
+local function start_backgroundThread(discord_data)
+    local worker =
+        thread.work(
+        function(url)
+            -- local u = url
+            local Scraper = require "scraper"
+            local serpent = require "serpent"
+            local scraper = Scraper:new(nil)
+            print("done")
+            local elements, html = scraper:get_elements("https://csgostash.com/weapon/CZ75-Auto")
+
+            -- local q = scraper:get_index(elements, serpent)
+
+            -- return q, html
+        end,
+        function(q, html)
+            -- q = load(q)()
+
+            -- local root = html_parser.parse(html)
+
+            -- local elements, _ = root:select(".center-block")
+            -- for i, e in ipairs(elements) do
+            --     local v = scraper.get_quality(e.parent.parent.nodes)
+            --     if v ~= "" then
+            --         q[i].quality = v
+            --     end
+            -- end
+            -- coroutine.wrap(
+            --     function()
+            --         local channel = client:getChannel(discord_data.channel_id)
+            --         q =
+            --             table.filter(
+            --             q,
+            --             function(i, v)
+            --                 if v.name:match(discord_data.item) then
+            --                     return true
+            --                 end
+            --             end
+            --         )
+            --         if q[1] ~= nil then
+            --             pcall(send_embed, channel, q[1])
+            --         else
+            --             channel:send("`Item " .. discord_data.item .. " " .. "not found`")
+            --         end
+            --         collectgarbage()
+            --     end
+            -- )()
+            -- channel:send(t[1].quality)
+        end
+    )
+    worker:queue(discord_data.url)
+end
+
 client:on(
     "ready",
     function()
         print("Logged in as " .. client.user.username)
     end
 )
-
 client:on(
     "messageCreate",
     function(message)
@@ -165,23 +182,27 @@ client:on(
                 if #split < 3 or #split < 2 then
                     message.channel:send("`Not enough arguments for !get`")
                 else
-                    http.url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
-                    local q = scraper.get_index(scraper, get_elements())
-                    q =
-                        table.filter(
-                        q,
-                        function(i, v)
-                            if v.name:match(split[3]) then
-                                return true
-                            end
-                        end
+                    -- q =
+                    --     table.filter(
+                    --     q,
+                    --     function(i, v)
+                    --         if v.name:match(split[3]) then
+                    --             return true
+                    --         end
+                    --     end
+                    -- )
+                    -- if q[1] ~= nil then
+                    --     pcall(send_embed, message.channel, q[1])
+                    -- else
+                    --     message.channel:send("`Item " .. split[3] .. " " .. "not found`")
+                    -- end
+                    -- collectgarbage()
+                    --   http.url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
+                    -- local q = scraper.get_index(scraper, get_elements())
+                    local url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
+                    start_backgroundThread(
+                        {url = url, name = message.name, channel_id = message.channel.id, item = split[3]}
                     )
-                    if q[1] ~= nil then
-                        pcall(send_embed, message.channel, q[1])
-                    else
-                        message.channel:send("`Item " .. split[3] .. " " .. "not found`")
-                    end
-                    collectgarbage()
                 end
             else
                 if message.content:match("!alias") then
@@ -189,12 +210,12 @@ client:on(
                     pcall(send_alias, message.channel)
                 else
                     if message.content:match("!featured") then
+                        -- local url = "https://csgostash.com/"
+                        -- local q = scraper.get_index(scraper, get_elements(url))
+                        -- for i = 1, #q, 1 do
+                        --     pcall(send_embed, message.channel, q[i])
+                        -- end
                         collectgarbage()
-                        http.url = "https://csgostash.com/"
-                        local q = scraper.get_index(scraper, get_elements())
-                        for i = 1, #q, 1 do
-                            pcall(send_embed, message.channel, q[i])
-                        end
                     else
                         if message.content:match("!commands") then
                             message.channel:send(
@@ -208,7 +229,6 @@ client:on(
         collectgarbage()
     end
 )
+-- body
 
 client:run(token)
-
-print(s)
