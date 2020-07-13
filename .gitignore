@@ -45,3 +45,10 @@ discordia.log
 gateway.json
 config.txt
 chromedriver_win32
+
+# Local Files
+scrapedData.txt
+url.txt
+Cargo.lock
+geckodriver.log
+threading/target

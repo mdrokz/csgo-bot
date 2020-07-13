@@ -1,8 +1,9 @@
 -- dependencies
-local pprint = require("pprint")
+-- local pprint = require("pprint")
 local html_parser = require("htmlparser")
 local curl = require("curl")
 local alias = require("alias")
+local ffi = require("ffi")
 local Scraper = require("scraper")
 local discordia = require("discordia")
 local client = discordia.Client()
@@ -17,13 +18,18 @@ local dev = true
 
 print("Started...")
 
+local clib = ffi.load("threading/target/release/librust_threading.so")
+
+ffi.cdef [[
+  typedef void (*cb)(const char* v);
+  void start_thread(const char* v, void (*)(const char* v,int len));
+]]
+
 local html = ""
 
 local http = curl:new(nil, url)
 
 local scraper = Scraper:new()
-
-pprint(http.url)
 
 local function get_elements()
     for c in http:get("curl ") do
@@ -78,22 +84,27 @@ local function send_embed(channel, q)
     local r, g, b = random(10000, 20000)
     local listings = q.steam_info.listings
     local description = "[Steam Listings](" .. listings .. ")"
-    channel:send {
-        embed = {
-            title = "CSGO Skins",
-            fields = {
-                {name = "Skin Name", value = q.name, inline = true},
-                {name = "Quality", value = q.quality, inline = true},
-                {name = "Price", value = q.price.price, inline = true},
-                {name = "Stat Strak Price", value = q.price.factory_price, inline = true}
-            },
-            description = description,
-            color = discordia.Color.fromRGB(r, g, b).value,
-            timestamp = discordia.Date():toISO("T", "Z"),
-            image = {url = q.src},
-            footer = {icon_url = client.user.avatarURL, text = client.user.username}
-        }
+    local embed = {
+        title = "CSGO Skins",
+        fields = {
+            {name = "Skin Name", value = q.name, inline = true},
+            {name = "Quality", value = q.quality, inline = true},
+            {name = "Price", value = q.price.price, inline = true},
+            {name = "Stat Strak Price", value = q.price.factory_price, inline = true}
+        },
+        description = description,
+        color = discordia.Color.fromRGB(r, g, b).value,
+        timestamp = discordia.Date():toISO("T", "Z"),
+        image = {url = q.src},
+        footer = {icon_url = client.user.avatarURL, text = client.user.username}
     }
+    coroutine.wrap(
+        function()
+            channel:send {
+                embed = embed
+            }
+        end
+    )()
 end
 
 local function send_alias(channel)
@@ -123,9 +134,20 @@ local function send_alias(channel)
     channel:send {embed = embed}
 end
 
-local function is_development(guild)
-    return guild.name == "music server" and dev == true
+-- local function is_development(guild)
+--     return guild.name == "music server" and dev == true
+-- end
+
+local function interp(s, tab)
+    return (s:gsub(
+        "($%b{})",
+        function(w)
+            return tab[w:sub(3, -2)] or w
+        end
+    ))
 end
+
+getmetatable("").__mod = interp
 
 client:on(
     "ready",
@@ -137,42 +159,94 @@ client:on(
 client:on(
     "messageCreate",
     function(message)
-        is_development(message.guild)
         if message.author.bot ~= true then
             if message.content:match("!get") then
                 local split = string.split(message.content, " ")
                 if #split < 3 or #split < 2 then
                     message.channel:send("`Not enough arguments for !get`")
                 else
-                    http.url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
-                    local q = scraper.get_index(scraper, get_elements())
-                    q =
-                        table.filter(
-                        q,
-                        function(i, v)
-                            if v.name:match(split[3]) then
-                                return true
+                    -- local q = scraper.get_index(scraper, get_elements())
+                    -- local f = io.open("./url.txt", "w")
+                    -- f:write(q[item].steam_info.item_url)
+                    -- f:close()
+                    -- io.popen("python3 python/index.py")
+                    -- if q[item] ~= nil then
+                    --     -- pcall(send_embed, message.channel, q[item])
+                    --     send_embed(message.channel, q[item])
+                    -- else
+                    --     message.channel:send("`Item " .. split[3] .. " " .. "not found`")
+                    -- end
+                    local url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
+                    local item = split[3]
+                    local id = message.channel.id
+
+                    clib.start_thread(
+                        [[
+                        io.popen("python3 python/index.py")
+                        return "success"
+                        ]],
+                        function(s, len)
+                            print(ffi.string(s, len))
+                        end
+                    )
+
+                    clib.start_thread(
+                        [[
+                            local curl = require "curl"
+                            local Scraper = require "scraper"
+                            local serpent = require "serpent"
+                            local html_parser = require "htmlparser"
+
+                            local http = curl:new(nil, url)
+
+                            local html = ""
+
+                            local scraper = Scraper:new()
+                            
+                            http.url = "${url}"
+
+                        local function get_elements()
+                            for c in http:get("curl ") do
+                                html = html .. c
+                            end
+                         local root = html_parser.parse(html)
+
+                         return root:select(".center-block")
+                         end
+
+                         local q = scraper.get_index(scraper, get_elements())
+                         local f = io.open("./url.txt", "w")
+                         f:write(q["${item}"].steam_info.item_url)
+                         f:close()
+
+                         return serpent.dump(q)
+
+                        ]] %
+                            {url = url, item = item},
+                        function(s, len)
+                            local q = load(ffi.string(s, len))()
+                            if q[item] ~= nil then
+                                -- pcall(send_embed, message.channel, q[item])
+                                local channel = client:getChannel(id)
+                                send_embed(channel, q[item])
+                            else
+                                message.channel:send("`Item " .. split[3] .. " " .. "not found`")
                             end
                         end
                     )
-                    if q[1] ~= nil then
-                        pcall(send_embed, message.channel, q[1])
-                    else
-                        message.channel:send("`Item " .. split[3] .. " " .. "not found`")
-                    end
-                    collectgarbage()
                 end
             else
                 if message.content:match("!alias") then
-                    collectgarbage()
                     pcall(send_alias, message.channel)
                 else
                     if message.content:match("!featured") then
-                        collectgarbage()
                         http.url = "https://csgostash.com/"
                         local q = scraper.get_index(scraper, get_elements())
-                        for i = 1, #q, 1 do
-                            pcall(send_embed, message.channel, q[i])
+                        for i = 1, #scraper.names, 1 do
+                            local name = scraper.names[i]
+                            if name ~= nil then
+                                pcall(send_embed, message.channel, q[name.name])
+                            end
                         end
                     else
                         if message.content:match("!commands") then
@@ -184,7 +258,6 @@ client:on(
                 end
             end
         end
-        collectgarbage()
     end
 )
 
