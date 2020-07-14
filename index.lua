@@ -1,5 +1,5 @@
 -- dependencies
--- local pprint = require("pprint")
+local pprint = require("pprint")
 local html_parser = require("htmlparser")
 local curl = require("curl")
 local alias = require("alias")
@@ -23,6 +23,8 @@ local clib = ffi.load("threading/target/release/librust_threading.so")
 ffi.cdef [[
   typedef void (*cb)(const char* v);
   void start_thread(const char* v, void (*)(const char* v,int len));
+  void spawn_process(const char* process,const char* args);
+  int poll(struct pollfd *fds, unsigned long nfds, int timeout);
 ]]
 
 local html = ""
@@ -83,7 +85,7 @@ end
 local function send_embed(channel, q)
     local r, g, b = random(10000, 20000)
     local listings = q.steam_info.listings
-    local description = "[Steam Listings](" .. listings .. ")"
+    local description = "[Steam Listings](" .. listings .. ")" .. "\n" .. q.listing.listings
     local embed = {
         title = "CSGO Skins",
         fields = {
@@ -165,30 +167,17 @@ client:on(
                 if #split < 3 or #split < 2 then
                     message.channel:send("`Not enough arguments for !get`")
                 else
-                    -- local q = scraper.get_index(scraper, get_elements())
-                    -- local f = io.open("./url.txt", "w")
-                    -- f:write(q[item].steam_info.item_url)
-                    -- f:close()
-                    -- io.popen("python3 python/index.py")
-                    -- if q[item] ~= nil then
-                    --     -- pcall(send_embed, message.channel, q[item])
-                    --     send_embed(message.channel, q[item])
-                    -- else
-                    --     message.channel:send("`Item " .. split[3] .. " " .. "not found`")
-                    -- end
+                    -- clib.start_thread(
+                    --     [[
+                    --     os.execute("python3 python/index.py")
+                    --     return "success"
+                    --     ]],
+                    --     function(s, len)
+                    --         print(ffi.string(s, len))
+                    --     end
+                    -- )
                     local url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
                     local item = split[3]
-                    local id = message.channel.id
-
-                    clib.start_thread(
-                        [[
-                        io.popen("python3 python/index.py")
-                        return "success"
-                        ]],
-                        function(s, len)
-                            print(ffi.string(s, len))
-                        end
-                    )
 
                     clib.start_thread(
                         [[
@@ -215,22 +204,42 @@ client:on(
                          end
 
                          local q = scraper.get_index(scraper, get_elements())
-                         local f = io.open("./url.txt", "w")
-                         f:write(q["${item}"].steam_info.item_url)
-                         f:close()
-
+                        
+                        --  local f = io.open("./url.txt", "w")
+                        --  f:write(q["${item}"].steam_info.item_url)
+                        --  f:close()
                          return serpent.dump(q)
 
                         ]] %
                             {url = url, item = item},
                         function(s, len)
-                            local q = load(ffi.string(s, len))()
-                            if q[item] ~= nil then
+                            local q = load(ffi.string(s, len))()[item]
+                            if q ~= nil then
+                                local listing_url = q.steam_info.item_url
+                                local p_command = "echo " .. "'${listing_url}'" % {listing_url = listing_url}
+                                p_command = p_command .. "> " .. " " .. "mypipe"
+                                os.execute(p_command)
                                 -- pcall(send_embed, message.channel, q[item])
-                                local channel = client:getChannel(id)
-                                send_embed(channel, q[item])
+                                ffi.C.poll(nil, 0, 6900)
+                                local file = io.input("scrapedData.txt")
+                                local listings = ""
+                                for i = 1, 10, 1 do
+                                    -- print(file:read())
+                                    listings = listings .. file:read() .. "\n"
+                                end
+                                q.listing = {listings = listings, url = file:read()}
+                                
+                                file:close()
+
+                                
+                                file = io.open("scrapedData.txt", "w")
+                                file:write("")
+                                file:close()
+
+
+                                send_embed(message.channel, q)
                             else
-                                message.channel:send("`Item " .. split[3] .. " " .. "not found`")
+                                message.channel:send("`Item " .. item .. " " .. "not found`")
                             end
                         end
                     )
