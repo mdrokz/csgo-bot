@@ -4,6 +4,7 @@ local html_parser = require("htmlparser")
 local curl = require("curl")
 local alias = require("alias")
 local ffi = require("ffi")
+local fs = require("fs")
 local Scraper = require("scraper")
 local discordia = require("discordia")
 local client = discordia.Client()
@@ -22,10 +23,12 @@ local clib = ffi.load("threading/target/release/librust_threading.so")
 
 ffi.cdef [[
   typedef void (*cb)(const char* v);
-  void start_thread(const char* v, void (*)(const char* v,int len));
+  void start_thread(const char* v,int duration,void (*)(const char* v,int len));
   void spawn_process(const char* process,const char* args);
   int poll(struct pollfd *fds, unsigned long nfds, int timeout);
 ]]
+
+-- clib.spawn_process("python3","python/index.py")
 
 local html = ""
 
@@ -192,6 +195,17 @@ client:on(
 
                             local scraper = Scraper:new()
                             
+                            local function interp(s, tab)
+                                return (s:gsub(
+                                    "($%b{})",
+                                    function(w)
+                                        return tab[w:sub(3, -2)] or w
+                                    end
+                                ))
+                            end
+                            
+                            getmetatable("").__mod = interp
+                            
                             http.url = "${url}"
 
                         local function get_elements()
@@ -205,41 +219,51 @@ client:on(
 
                          local q = scraper.get_index(scraper, get_elements())
                         
+                         local listing_url = q["${item}"].steam_info.item_url
+                         local p_command = "echo " .. "'${listing_url}'" % {listing_url = listing_url}
+                         p_command = p_command .. "> " .. " " .. "mypipe"
+                         os.execute(p_command)
+
                         --  local f = io.open("./url.txt", "w")
                         --  f:write(q["${item}"].steam_info.item_url)
                         --  f:close()
-                         return serpent.dump(q)
-
+                         return serpent.dump(q["${item}"])
                         ]] %
                             {url = url, item = item},
+                        9500,
                         function(s, len)
-                            local q = load(ffi.string(s, len))()[item]
+                            local str = ffi.string(s, len)
+                            local q = nil
+                            if str ~= "" then
+                                q = load(str)()
+                            end
                             if q ~= nil then
-                                local listing_url = q.steam_info.item_url
-                                local p_command = "echo " .. "'${listing_url}'" % {listing_url = listing_url}
-                                p_command = p_command .. "> " .. " " .. "mypipe"
-                                os.execute(p_command)
-                                -- pcall(send_embed, message.channel, q[item])
-                                ffi.C.poll(nil, 0, 6900)
+                                print("inside")
                                 local file = io.input("scrapedData.txt")
                                 local listings = ""
-                                for i = 1, 10, 1 do
+                                for i = 1, 7, 1 do
                                     -- print(file:read())
-                                    listings = listings .. file:read() .. "\n"
+                                    local t = file:read()
+                                    if t ~= nil then
+                                        listings = listings .. t .. "\n"
+                                    end
                                 end
-                                q.listing = {listings = listings, url = file:read()}
-                                
+                                q.listing = {listings = listings}
+
                                 file:close()
 
-                                
-                                file = io.open("scrapedData.txt", "w")
-                                file:write("")
-                                file:close()
-
+                                -- file = io.open("scrapedData.txt", "w")
+                                -- file:write()
+                                -- file:flush()
+                                -- file:close()
 
                                 send_embed(message.channel, q)
                             else
-                                message.channel:send("`Item " .. item .. " " .. "not found`")
+                                coroutine.wrap(
+                                    function()
+                                        message.channel:send("`Item " .. item .. " " .. "not found`")
+                                    end
+                                )()
                             end
                         end
                     )

@@ -1,6 +1,4 @@
 Scraper = {names = {}}
-local pprint = require "pprint"
-
 function Scraper:new(o)
     o = o or {}
     setmetatable(o, self)
@@ -52,7 +50,7 @@ function Scraper:get_steam_info(element)
     end
 end
 
-function Scraper:get_index(elements, clib)
+function Scraper:get_index(elements)
     local q = {}
     for i, e in ipairs(elements) do
         local name = self:get_headers(e.parent.parent.nodes[1])

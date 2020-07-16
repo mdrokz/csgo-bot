@@ -1,6 +1,7 @@
-local thread = require("thread")
+-- local thread = require("thread")
 local pprint = require("pprint")
-local timer = require "timer"
+-- local timer = require "timer"
+local fs = require "fs"
 local ffi = require "ffi"
 
 -- local interval =
@@ -77,7 +78,7 @@ pprint(code)
 --     local serpent = require "serpent"
 
 --     local s = scraper:new(nil)
-    
+
 --     local t = {d = 20,memes = "d wa", d = {t = 1}}
 
 --     return serpent.dump(t)
@@ -93,8 +94,38 @@ print("after hello")
 -- clib.spawn_process("python3", "python/index.py")
 -- os.execute("echo 'https://csgostash.com/skin/262/CZ75-Auto-Victoria' > mypipe")
 
-local f = io.open("scrapedData.txt","r+")
+-- local f = io.open("scrapedData.txt","r+")
 
 -- print(f:read(400))
-f:write("")
+-- f:write("")
+-- local f = io.popen("tail -f scrapedData.txt")
+-- clib.spawn_process("tail", "-f scrapedData.txt")
+
+-- fs.stat(
+--   "scrapedData.txt",
+--   function(err, stat)
+--     pprint(stat.size)
+--   end
+-- )
+
+local l = true
+local f = io.open("scrapedData.txt", "r+")
+
+f:seek("set", 10)
+print(f:write("l"))
+-- while l do
+--   -- local f = io.open("scrapedData.txt","r")
+--   -- local data = f:read()
+--   if f:read() ~= nil then
+--     f:close()
+--     l = false
+--     print("file check ended")
+--     break
+--   end
+-- end
+
+-- local f = io.read(300)
+
+-- print("HELLO WORLD" + f)
+
 print("python process done")

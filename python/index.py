@@ -29,8 +29,14 @@ except OSError as oe:
 
 
 def getPrices():
-    priceDataTable = driver.find_element_by_class_name(
-        "price-details-table").text
+    priceDataTable = None
+    try:
+        priceDataTable = driver.find_element_by_xpath(
+            "/html/body/div[2]/div[3]/div/div").text
+    except Exception as e:
+        print(e)
+        return
+
     pricesTableRows = priceDataTable.splitlines()
 
     for i in range(len(pricesTableRows)):
@@ -55,40 +61,33 @@ def getPrices():
 
 
 def getListing():
-    steamListing = driver.find_element_by_xpath(
-        '//*[@id="prices"]/div[1]/a').get_attribute("href")
-    f.write(steamListing + "\n")
-    f.flush()
+    try:
+        steamListing = driver.find_element_by_xpath(
+            '//*[@id="prices"]/div[1]/a').get_attribute("href")
+        f.write(steamListing + "\n")
+        f.flush()
+    except Exception as e:
+        print(e)
+        return
     # f.close()
 
 
+data = ""
 while True:
     print("Opening FIFO...")
     with open(FIFO) as fifo:
         print("FIFO opened")
         while True:
-            data = fifo.read()
+            if data and data.strip():
+                data = ""
+
+            data = fifo.readline()
+
             if len(data) == 0:
                 print("Writer closed")
                 break
-            # print('Read: "{0}"', data)
-            driver.get(data)
-            getPrices()
-            getListing()
-
-# driver.get(url)
-# os.remove('./url.txt')
-
-# get Price Table
-
-    # print(currentRowData)
-
-
-# Get steam listings
-# print(steamListing)
-
-# f.close()
-
-# print(prices)
-
-# driver.close()
+            if data and data.strip():
+                print(data)
+                driver.get(data)
+                getPrices()
+                getListing()
