@@ -17,9 +17,15 @@ options.headless = True
 driver = webdriver.Firefox(options=options)
 
 
+SERVER_ADDRESS = '/tmp/socket'
+
 FIFO = 'mypipe'
 
-f = open("./scrapedData.txt", "a", encoding='utf-8', errors='ignore')
+try:
+    os.unlink(SERVER_ADDRESS)
+except OSError:
+    if os.path.exists(SERVER_ADDRESS):
+        raise
 
 try:
     os.mkfifo(FIFO)
@@ -27,9 +33,10 @@ except OSError as oe:
     if oe.errno != errno.EEXIST:
         raise
 
-
 def getPrices():
+    priceData = []
     priceDataTable = None
+    p = ""
     try:
         priceDataTable = driver.find_element_by_xpath(
             "/html/body/div[2]/div[3]/div/div").text
@@ -47,47 +54,101 @@ def getPrices():
         if(i < 3):
             skin = currentRowData[0]+" "+currentRowData[1]+currentRowData[2]
             steamPrice = currentRowData[3]
-            f.write(skin+":"+steamPrice+"\n")
+            priceData.append(skin+":"+steamPrice+"\n")
+            # f.write(skin+":"+steamPrice+"\n")
         elif(i < 8):
             skin = currentRowData[0]+" "+currentRowData[1]
             steamPrice = currentRowData[2]
-            f.write(skin+":"+steamPrice+"\n")
-
+            priceData.append(skin+":"+steamPrice+"\n")
+            # f.write(skin+":"+steamPrice+"\n")
         else:
             skin = currentRowData[0]
             steamPrice = currentRowData[1]
-            f.write(skin+":"+steamPrice+"\n")
-    f.flush()
+            priceData.append(skin+":"+steamPrice+"\n")
+
+            # f.write(skin+":"+steamPrice+"\n")
+    for price in priceData:
+        p = p + price
+
+    return p
 
 
-def getListing():
+def startScraping(url):
+    print(url)
+    driver.get(url)
+    p = getPrices()
+    p = getListing(p)
+    return p
+
+
+def getListing(p):
     try:
         steamListing = driver.find_element_by_xpath(
             '//*[@id="prices"]/div[1]/a').get_attribute("href")
-        f.write(steamListing + "\n")
-        f.flush()
+        # minWearPriceUrl = driver.find_element_by_xpath(
+        #     '//*[@id="DataTables_Table_0"]/tbody/tr[7]/td[2]/a').get_attribute("href")
+
+        # driver.get(minWearPriceUrl)
+
+        # Canvaselem = driver.find_element_by_xpath('//*[@id="pricehistory"]')
+        # Canvaselem.screenshot('./element.png')
+        p = p + steamListing + "\n"
+        return p
     except Exception as e:
         print(e)
         return
     # f.close()
 
 
-data = ""
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+print('starting up on %s' % SERVER_ADDRESS)
+sock.bind(SERVER_ADDRESS)
+
+sock.listen(1)
+
 while True:
-    print("Opening FIFO...")
-    with open(FIFO) as fifo:
-        print("FIFO opened")
+    # Wait for a connection
+    print('waiting for a connection')
+    connection, client_address = sock.accept()
+    try:
+        print('connection from', client_address)
+
+        # Receive the data in small chunks and retransmit it
         while True:
+            data = connection.recv(1024)
+            # data = ""
+            print('received "%s"' % data)
             if data and data.strip():
-                data = ""
-
-            data = fifo.readline()
-
-            if len(data) == 0:
-                print("Writer closed")
+                print('sending data back to the client')
+                p = startScraping(data.decode('utf-8'))
+                print(p)
+                if p:
+                    connection.sendall(bytes(p.encode('utf-8')))
+                    print('Data sent to client')
+                connection.close()
                 break
-            if data and data.strip():
-                print(data)
-                driver.get(data)
-                getPrices()
-                getListing()
+            else:
+                print('no more data from', client_address)
+                break
+
+    finally:
+        # Clean up the connection
+        connection.close()
+
+# data = ""
+# while True:
+#     print("Opening FIFO...")
+#     with open(FIFO) as fifo:
+#         print("FIFO opened")
+#         while True:
+#             if data and data.strip():
+#                 data = ""
+
+#             data = fifo.readline()
+
+#             if len(data) == 0:
+#                 print("Writer closed")
+#                 break
+#             if data and data.strip():
+#                 startScraping(data)

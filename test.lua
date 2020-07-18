@@ -49,6 +49,7 @@ ffi.cdef [[
   typedef void (*cb)(const char* v);
   void start_thread(const char* v, void (*)(const char* v,int len));
   void spawn_process(const char* process,const char* args);
+  void connect_to_domain_socket(const char* v,const char* data, void (*)(const char* v,int len));
 ]]
 
 pprint(ffi)
@@ -71,6 +72,14 @@ local code = [[
 ]] % {url = url}
 
 pprint(code)
+
+clib.connect_to_domain_socket(
+  "/tmp/socket",
+  "https://csgostash.com/skin/1266/M4A1-S-Player-Two",
+  function(s, len)
+    print(ffi.string(s, len))
+  end
+)
 
 -- clib.start_thread(
 --   [[
@@ -108,11 +117,26 @@ print("after hello")
 --   end
 -- )
 
-local l = true
-local f = io.open("scrapedData.txt", "r+")
+-- local l = true
+-- local f = io.open("scrapedData.txt", "r+")
 
-f:seek("set", 10)
-print(f:write("l"))
+-- for i = 1,1,1 do
+--   f:seek("set", 1)
+--   local n = f:write("")
+--   f:seek("set", 2)
+--   local n = f:write("")
+--   f:seek("set", 3)
+--   local n = f:write("")
+--   f:seek("set", 4)
+--   local n = f:write("")
+--   f:seek("set", 5)
+--   local n = f:write("")
+--   f:seek("set", 6)
+
+--   local n = f:write("")
+--   print(n)
+-- end
+-- print(f:read())
 -- while l do
 --   -- local f = io.open("scrapedData.txt","r")
 --   -- local data = f:read()

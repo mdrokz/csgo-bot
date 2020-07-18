@@ -25,6 +25,7 @@ ffi.cdef [[
   typedef void (*cb)(const char* v);
   void start_thread(const char* v,int duration,void (*)(const char* v,int len));
   void spawn_process(const char* process,const char* args);
+  void connect_to_domain_socket(const char* v,const char* data, void (*)(const char* v,int len));
   int poll(struct pollfd *fds, unsigned long nfds, int timeout);
 ]]
 
@@ -181,7 +182,7 @@ client:on(
                     -- )
                     local url = "https://csgostash.com/" .. "weapon/" .. alias.alias[split[2]]
                     local item = split[3]
-
+                    message.channel:send("Fetching....")
                     clib.start_thread(
                         [[
                             local curl = require "curl"
@@ -219,10 +220,10 @@ client:on(
 
                          local q = scraper.get_index(scraper, get_elements())
                         
-                         local listing_url = q["${item}"].steam_info.item_url
-                         local p_command = "echo " .. "'${listing_url}'" % {listing_url = listing_url}
-                         p_command = p_command .. "> " .. " " .. "mypipe"
-                         os.execute(p_command)
+                        --  local listing_url = q["${item}"].steam_info.item_url
+                        --  local p_command = "echo " .. "'${listing_url}'" % {listing_url = listing_url}
+                        --  p_command = p_command .. "> " .. " " .. "mypipe"
+                        --  os.execute(p_command)
 
                         --  local f = io.open("./url.txt", "w")
                         --  f:write(q["${item}"].steam_info.item_url)
@@ -230,7 +231,7 @@ client:on(
                          return serpent.dump(q["${item}"])
                         ]] %
                             {url = url, item = item},
-                        9500,
+                        0,
                         function(s, len)
                             local str = ffi.string(s, len)
                             local q = nil
@@ -238,26 +239,26 @@ client:on(
                                 q = load(str)()
                             end
                             if q ~= nil then
-                                print("inside")
-                                local file = io.input("scrapedData.txt")
-                                local listings = ""
-                                for i = 1, 7, 1 do
-                                    -- print(file:read())
-                                    local t = file:read()
-                                    if t ~= nil then
-                                        listings = listings .. t .. "\n"
-                                    end
-                                end
-                                q.listing = {listings = listings}
-
-                                file:close()
-
                                 -- file = io.open("scrapedData.txt", "w")
                                 -- file:write()
                                 -- file:flush()
                                 -- file:close()
-
-                                send_embed(message.channel, q)
+                                print("inside")
+                                clib.connect_to_domain_socket(
+                                    "/tmp/socket",
+                                    q.steam_info.item_url,
+                                    function(s, len)
+                                        q.listing = {listings = ffi.string(s, len)}
+                                        send_embed(message.channel, q)
+                                        coroutine.wrap(
+                                            function()
+                                                message.channel:send {
+                                                    file = "element.png"
+                                                }
+                                            end
+                                        )()
+                                    end
+                                )
                             else
                                 coroutine.wrap(
                                     function()
@@ -278,7 +279,7 @@ client:on(
                         for i = 1, #scraper.names, 1 do
                             local name = scraper.names[i]
                             if name ~= nil then
-                                pcall(send_embed, message.channel, q[name.name])
+                                send_embed(message.channel, q[name.name])
                             end
                         end
                     else
